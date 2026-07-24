@@ -1,33 +1,20 @@
 #pragma once
 
+#include "SideValue.hpp"
 namespace board {
-
 class Tile {
 public:
-  Tile(int left, int right);
+  Tile(SideValue left, SideValue right);
 
-  int left() const;
-  int right() const;
+  SideValue left() const;
+  SideValue right() const;
   bool is_double() const;
 
   void flip();
 
 private:
-  int m_left;
-  int m_right;
-};
-
-enum class SideValue {
-  Zero = 0,
-  One = 1,
-  Two = 2,
-  Three = 3,
-  Four = 4,
-  Five = 5,
-  Six = 6,
-  Seven = 7,
-  Eight = 8,
-  Nine = 9
+  SideValue m_left;
+  SideValue m_right;
 };
 
 } // namespace board
