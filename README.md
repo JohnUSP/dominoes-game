@@ -46,9 +46,18 @@ ctest --test-dir build --output-on-failure
 Configure with `-DBUILD_TESTING=OFF` to build without GoogleTest.
 Configure with `-DBUILD_GUI=OFF` to build the console and engine without Qt.
 
-Run the console application with `./build/dominoes`, or open the desktop tile
-preview with `./build/gui/dominoes_gui`. Clicking a tile toggles its selection
-and plays a short sound.
+Run the console application with `./build/dominoes`, or open the desktop hand
+view with `./build/gui/dominoes_gui`. The desktop app creates a real match and
+displays the opening player's name and ten dealt tiles. Clicking a tile toggles
+its selection and plays a short sound. Tile placement is the next GUI slice.
+
+Use `./build/gui/dominoes_gui --tile-gallery` to inspect all 55 tile designs.
+
+The Qt presentation layer lives in `gui/`. `MatchViewModel` owns the match and
+its random engine. `TileListModel` exposes read-only snapshots through the
+`leftValue` and `rightValue` roles; it never retains references to engine tiles.
+Selection is presentation state and clears when the hand model resets. The C++
+engine has no dependency on Qt.
 
 On Ubuntu, selection audio also needs the `qt6-multimedia-dev` and
 `qml6-module-qtmultimedia` packages:

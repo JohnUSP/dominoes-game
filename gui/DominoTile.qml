@@ -14,7 +14,7 @@ Rectangle {
     radius: 8
     color: "#fffaf0"
     border.color: root.selected ? "#1565c0" : "#444444"
-    border.width: root.selected ? 4 : 2
+    border.width: root.selected ? 3 : 1
 
     DominoFace {
         anchors.left: parent.left
@@ -37,7 +37,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.margins: 12
-        width: 3
+        width: 1
         color: "#444444"
     }
 

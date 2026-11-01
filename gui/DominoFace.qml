@@ -21,8 +21,9 @@ Item {
         [0, 1, 2, 3, 4, 5, 6, 7, 8]
     ]
 
-    readonly property real pipDiameter: Math.min(width, height) * 0.18
-    readonly property real pipSpacing: Math.min(width, height) * 0.24
+    // Keep pip size and spacing when the tile is shortened along its long axis.
+    readonly property real pipDiameter: height * 0.18
+    readonly property real pipSpacing: height * 0.24
 
     Repeater {
         model: face.value >= 0 && face.value < face.pipLayouts.length

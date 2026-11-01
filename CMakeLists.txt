@@ -34,11 +34,6 @@ target_link_libraries(dominoes
         game_engine
 )
 
-option(BUILD_GUI "Build the Qt Quick desktop application" ON)
-if(BUILD_GUI)
-    add_subdirectory(gui)
-endif()
-
 include(CTest)
 if(BUILD_TESTING)
     find_package(GTest REQUIRED)
@@ -46,4 +41,9 @@ if(BUILD_TESTING)
     target_link_libraries(match_tests PRIVATE game_engine GTest::gtest_main)
     include(GoogleTest)
     gtest_discover_tests(match_tests)
+endif()
+
+option(BUILD_GUI "Build the Qt Quick desktop application" ON)
+if(BUILD_GUI)
+    add_subdirectory(gui)
 endif()
