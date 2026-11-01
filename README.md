@@ -34,7 +34,8 @@ references. Keep a Match at a stable address for its lifetime.
 
 ## Build and test
 
-With CMake, a C++20 compiler, and GoogleTest installed:
+With CMake, a C++20 compiler, GoogleTest, and Qt 6.5 or newer (Qt Quick/QML and Multimedia)
+installed:
 
 ```sh
 cmake -S . -B build
@@ -43,3 +44,15 @@ ctest --test-dir build --output-on-failure
 ```
 
 Configure with `-DBUILD_TESTING=OFF` to build without GoogleTest.
+Configure with `-DBUILD_GUI=OFF` to build the console and engine without Qt.
+
+Run the console application with `./build/dominoes`, or open the desktop tile
+preview with `./build/gui/dominoes_gui`. Clicking a tile toggles its selection
+and plays a short sound.
+
+On Ubuntu, selection audio also needs the `qt6-multimedia-dev` and
+`qml6-module-qtmultimedia` packages:
+
+```sh
+sudo apt install qt6-multimedia-dev qml6-module-qtmultimedia
+```
