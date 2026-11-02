@@ -43,6 +43,11 @@ bool MatchViewModel::handFinished() const noexcept {
   return m_match.current_hand().hand_result().has_value();
 }
 
+bool MatchViewModel::passAvailable() const noexcept {
+  const auto &game = m_match.current_hand();
+  return !game.board().blocks().empty() && !game.hand_result();
+}
+
 bool MatchViewModel::canPlayAt(BoardEnd end) const {
   return m_selected_index >= 0 && !openingAvailable() &&
       m_match.current_hand().can_play({static_cast<std::size_t>(m_selected_index), end});
@@ -87,6 +92,32 @@ bool MatchViewModel::playOpening() {
 bool MatchViewModel::playLeft() { return playAt(BoardEnd::left); }
 bool MatchViewModel::playRight() { return playAt(BoardEnd::right); }
 
+bool MatchViewModel::passTurn() {
+  const auto player = currentPlayerName();
+  const auto action = m_match.pass();
+  if (action == ActionResult::rejected) {
+    setFeedback(handFinished() ? QStringLiteral("The hand is finished.")
+                              : QStringLiteral("Open the hand before passing."));
+    return false;
+  }
+
+  // Passing changes the player/hand projection, not the board geometry.
+  refreshHand();
+  if (action == ActionResult::hand_ended) {
+    const auto reason = m_match.current_hand().hand_result()->reason;
+    if (reason == HandEndReason::invalid_pass) {
+      setFeedback(QStringLiteral("Invalid pass: %1's team loses the hand.").arg(player));
+    } else if (reason == HandEndReason::blocked) {
+      setFeedback(QStringLiteral("The hand is blocked: no player can move."));
+    } else {
+      setFeedback(QStringLiteral("The hand is finished."));
+    }
+  } else {
+    setFeedback(QStringLiteral("%1 passed. %2's turn.").arg(player, currentPlayerName()));
+  }
+  return true;
+}
+
 bool MatchViewModel::playAt(BoardEnd end) {
   if (handFinished()) {
     setFeedback(QStringLiteral("The hand is finished."));
@@ -128,6 +159,11 @@ void MatchViewModel::refreshState() {
   // Board uses deque storage; copy to contiguous storage for the snapshot API.
   const std::vector<Block> board_tiles{blocks.begin(), blocks.end()};
   m_board.set_tiles(board_tiles, game.board().opening_index());
+  refreshHand();
+}
+
+void MatchViewModel::refreshHand() {
+  const auto &game = m_match.current_hand();
   m_hand.set_tiles(m_match.players()[game.current_player_index()].hand());
   emit gameStateChanged();
 }

@@ -63,7 +63,12 @@ An upright opening double still uses left/right halves, and its first extension
 must go right. An illegal end request leaves the tile selected and shows feedback.
 Accepted moves update the board, current player and hand, and
 clear selection. A rejected move preserves them. Completed hands disable play.
-Passing, the score display and starting the next hand remain pending in the GUI.
+After opening, the action button becomes Pass. Passing does not require a selected
+tile. A valid pass advances the turn; passing while any tile in the hand can play
+ends the hand with the engine's invalid-pass penalty. Four consecutive valid passes
+end a blocked hand. Passing leaves the board layout unchanged and clears selection.
+The GUI reports blocked hands and invalid passes and disables actions after completion.
+The score display and starting the next hand remain pending in the GUI.
 
 Use `./build/gui/dominoes_gui --tile-gallery` to inspect all 55 tile designs.
 Use `./build/gui/dominoes_gui --board-preview` to inspect a connected 40-tile

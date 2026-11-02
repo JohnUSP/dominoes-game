@@ -26,6 +26,7 @@ class MatchViewModel : public QObject {
   Q_PROPERTY(int selectedHandIndex READ selectedHandIndex NOTIFY selectionChanged)
   Q_PROPERTY(bool openingAvailable READ openingAvailable NOTIFY gameStateChanged)
   Q_PROPERTY(bool handFinished READ handFinished NOTIFY gameStateChanged)
+  Q_PROPERTY(bool passAvailable READ passAvailable NOTIFY gameStateChanged)
   Q_PROPERTY(bool canPlayLeft READ canPlayLeft NOTIFY legalMovesChanged)
   Q_PROPERTY(bool canPlayRight READ canPlayRight NOTIFY legalMovesChanged)
   Q_PROPERTY(QString feedback READ feedback NOTIFY feedbackChanged)
@@ -40,6 +41,8 @@ public:
   int selectedHandIndex() const noexcept;
   bool openingAvailable() const noexcept;
   bool handFinished() const noexcept;
+  // Available during an open hand; the engine penalizes passes when a move exists.
+  bool passAvailable() const noexcept;
   bool canPlayLeft() const;
   bool canPlayRight() const;
   QString feedback() const;
@@ -49,6 +52,7 @@ public:
   Q_INVOKABLE bool playOpening();
   Q_INVOKABLE bool playLeft();
   Q_INVOKABLE bool playRight();
+  Q_INVOKABLE bool passTurn();
 
 signals:
   void selectionChanged();
@@ -58,6 +62,7 @@ signals:
 
 private:
   void refreshState();
+  void refreshHand();
   void setFeedback(QString message);
   bool canPlayAt(BoardEnd end) const;
   bool playAt(BoardEnd end);

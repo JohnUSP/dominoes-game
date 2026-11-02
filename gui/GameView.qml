@@ -45,25 +45,30 @@ Item {
         height: 56
 
         Button {
-            id: playButton
+            id: turnButton
 
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: "Play"
-            visible: gameView.matchViewModel.openingAvailable
-            width: visible ? implicitWidth : 0
+            text: gameView.matchViewModel.openingAvailable ? "Play" : "Pass"
             enabled: gameView.matchViewModel.openingAvailable
-                && gameView.matchViewModel.selectedHandIndex >= 0
-            onClicked: gameView.matchViewModel.playOpening()
+                ? gameView.matchViewModel.selectedHandIndex >= 0
+                : gameView.matchViewModel.passAvailable
+            onClicked: {
+                if (gameView.matchViewModel.openingAvailable) {
+                    gameView.matchViewModel.playOpening();
+                } else {
+                    gameView.matchViewModel.passTurn();
+                }
+            }
         }
 
         Text {
             id: feedbackText
 
-            anchors.left: playButton.right
+            anchors.left: turnButton.right
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: playButton.visible ? 16 : 0
+            anchors.leftMargin: 16
             text: gameView.matchViewModel.feedback
             color: "#333333"
             font.pixelSize: 14

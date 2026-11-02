@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
 
 Item {
     id: target
@@ -23,12 +22,7 @@ Item {
     Keys.onReturnPressed: target.clicked()
     Keys.onSpacePressed: target.clicked()
 
-    ToolTip.visible: hover.hovered
-    ToolTip.delay: 400
-    ToolTip.text: accessibleName
-
     HoverHandler {
-        id: hover
         cursorShape: Qt.PointingHandCursor
     }
 
