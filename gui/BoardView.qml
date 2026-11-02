@@ -1,0 +1,71 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import DominoesGui
+
+Rectangle {
+    id: boardView
+
+    required property BoardTileModel tiles
+
+    function updateViewport(): void {
+        if (boardView.tiles && surface) {
+            boardView.tiles.setViewport(surface.width, surface.height);
+        }
+    }
+
+    Component.onCompleted: boardView.updateViewport()
+
+    color: "#d6e3d2"
+    radius: 8
+    clip: true
+
+    Text {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 16
+        text: "Board"
+        color: "#263b29"
+        font.pixelSize: 20
+    }
+
+    Text {
+        anchors.centerIn: surface
+        width: surface.width
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        visible: boardView.tiles.count === 0
+        text: "Select a tile from your hand to open."
+        color: "#405c45"
+        font.pixelSize: 14
+    }
+
+    Item {
+        id: surface
+
+        anchors.fill: parent
+        anchors.margins: 16
+        anchors.topMargin: 52
+        onWidthChanged: boardView.updateViewport()
+        onHeightChanged: boardView.updateViewport()
+
+        Repeater {
+            model: boardView.tiles
+
+            delegate: DominoTile {
+                required property real centerX
+                required property real centerY
+                required property real angle
+                required property real tileWidth
+                required property real tileHeight
+
+                x: centerX - width / 2
+                y: centerY - height / 2
+                width: tileWidth
+                height: tileHeight
+                rotation: angle
+                enabled: false
+            }
+        }
+    }
+}

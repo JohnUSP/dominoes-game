@@ -8,6 +8,7 @@ Item {
     id: view
 
     required property MatchViewModel matchViewModel
+    implicitHeight: heading.implicitHeight + handList.height + 72
 
     SoundEffect {
         id: selectionSound

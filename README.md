@@ -34,7 +34,8 @@ references. Keep a Match at a stable address for its lifetime.
 
 ## Build and test
 
-With CMake, a C++20 compiler, GoogleTest, and Qt 6.5 or newer (Qt Quick/QML and Multimedia)
+With CMake, a C++20 compiler, GoogleTest, and Qt 6.5 or newer (Qt Quick/QML,
+Quick Controls 2, and Multimedia)
 installed:
 
 ```sh
@@ -49,15 +50,46 @@ Configure with `-DBUILD_GUI=OFF` to build the console and engine without Qt.
 Run the console application with `./build/dominoes`, or open the desktop hand
 view with `./build/gui/dominoes_gui`. The desktop app creates a real match and
 displays the opening player's name and ten dealt tiles. Clicking a tile toggles
-its selection and plays a short sound. Tile placement is the next GUI slice.
+its selection and plays a short sound. Select a tile and click Play to open the
+hand. The board then displays that tile, and the name and hand advance to the
+next player. This GUI slice supports the opening move; later placements and
+passing remain pending.
 
 Use `./build/gui/dominoes_gui --tile-gallery` to inspect all 55 tile designs.
+Use `./build/gui/dominoes_gui --board-preview` to inspect a connected 40-tile
+snake, or add `--preview-count 16` to inspect a shorter chain. The preview grows
+around the same 6|6 opening, initially centered. Resize the window to check reflow.
+Every double sits perpendicular to the incoming run from the opening, including
+at corners. Its incoming connection stays centered on its long side; a corner
+exits through an end. A terminal double stays centered across its incoming run.
+Board tile size is chosen once for the board dimensions, up to 96 by 48 pixels,
+reserving room for a complete forty-tile snake. Adding tiles never changes their
+size. Resizing the board establishes a new fixed size. Hand tiles keep their
+existing 72 by 128 pixel size.
 
 The Qt presentation layer lives in `gui/`. `MatchViewModel` owns the match and
 its random engine. `TileListModel` exposes read-only snapshots through the
 `leftValue` and `rightValue` roles; it never retains references to engine tiles.
 Selection is presentation state and clears when the hand model resets. The C++
 engine has no dependency on Qt.
+
+`BoardTileModel` exposes the ordered board snapshot with positions and rotations.
+Its geometry comes from `BoardLayout`, a Qt-independent presentation component.
+It starts the original opening at the board center, grows the right arm upward
+and the left arm downward, and moves the entire snake vertically in steps of two
+tile lengths when an edge needs room. It retains the offset between moves.
+Tile size and row width depend on the capacity for forty tiles, rather than the
+number already played. The reservation includes forty ordinary tiles, any
+opening position and the extra sideways clearance of doubles. It checks both
+board edges and rejects overlapping layouts. Normal corners turn at the incoming
+matching half. Doubles keep their incoming-run orientation when forming corners.
+Each vertical connector contains two lengthwise tiles before the return corner.
+A vertical double at the first bend counts as one of those tiles; a horizontal
+cross-double occupies its natural thickness. A corner double sends the next
+tile directly along its end, on the same centerline. Layout is recomputed after board
+changes or viewport resizing. A new hand resets the opening to the center.
+The domain Board records the opening
+tile's index as the logical chain grows, without knowing any screen coordinates.
 
 On Ubuntu, selection audio also needs the `qt6-multimedia-dev` and
 `qml6-module-qtmultimedia` packages:

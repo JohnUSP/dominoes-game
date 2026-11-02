@@ -8,6 +8,7 @@ bool Board::open(Block block) {
   }
 
   m_blocks.push_back(block);
+  m_opening_index = 0;
   return true;
 }
 
@@ -38,6 +39,7 @@ bool Board::place(Block block, BoardEnd destination) {
       block.flip();
     }
     m_blocks.push_front(block);
+    ++*m_opening_index;
   } else {
     if (block.left() != m_blocks.back().right()) {
       block.flip();
@@ -49,6 +51,10 @@ bool Board::place(Block block, BoardEnd destination) {
 }
 
 const std::deque<Block> &Board::blocks() const noexcept { return m_blocks; }
+
+std::optional<std::size_t> Board::opening_index() const noexcept {
+  return m_opening_index;
+}
 
 std::optional<Number> Board::left_end() const noexcept {
   if (m_blocks.empty()) {
