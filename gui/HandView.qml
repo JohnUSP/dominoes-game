@@ -56,6 +56,7 @@ Item {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         model: view.matchViewModel.hand
+        enabled: !view.matchViewModel.handFinished
 
         delegate: Item {
             id: cell

@@ -30,10 +30,14 @@ public:
   const Board &board() const noexcept;
   const std::optional<HandResult> &hand_result() const noexcept;
 
+  // Read-only validation using the same rules as play().
+  bool can_play(const Move &move) const;
+
   // Plays for the current player. Rejected moves leave game state unchanged.
   // On an empty board, destination is ignored.
   // Omitted destination: use the only legal end, or right when both ends have
   // the same number. Two legal ends with different numbers require a choice.
+  // The first tile added after an opening double must go to the right.
   ActionResult play(const Move &move);
   // Passing is explicitly requested by the player, never chosen by Game.
   // Before opening or after completion, passing is rejected.
@@ -42,7 +46,8 @@ public:
   ActionResult transfer_opening();
 
 private:
-  bool has_legal_move(const Player &player) const;
+  std::optional<BoardEnd> resolve_destination(const Move &move) const;
+  bool has_legal_move() const;
   void resolve_blocked_hand();
   void finish_hand(HandEndReason reason,
                    std::optional<std::size_t> winning_team,

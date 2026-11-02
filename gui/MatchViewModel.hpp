@@ -9,6 +9,7 @@
 #include <QtQml/qqmlregistration.h>
 
 #include <array>
+#include <optional>
 #include <random>
 #include <string>
 
@@ -24,6 +25,9 @@ class MatchViewModel : public QObject {
   Q_PROPERTY(dominoes::gui::BoardTileModel *board READ board CONSTANT)
   Q_PROPERTY(int selectedHandIndex READ selectedHandIndex NOTIFY selectionChanged)
   Q_PROPERTY(bool openingAvailable READ openingAvailable NOTIFY gameStateChanged)
+  Q_PROPERTY(bool handFinished READ handFinished NOTIFY gameStateChanged)
+  Q_PROPERTY(bool canPlayLeft READ canPlayLeft NOTIFY legalMovesChanged)
+  Q_PROPERTY(bool canPlayRight READ canPlayRight NOTIFY legalMovesChanged)
   Q_PROPERTY(QString feedback READ feedback NOTIFY feedbackChanged)
 
 public:
@@ -35,21 +39,29 @@ public:
   BoardTileModel *board() noexcept;
   int selectedHandIndex() const noexcept;
   bool openingAvailable() const noexcept;
+  bool handFinished() const noexcept;
+  bool canPlayLeft() const;
+  bool canPlayRight() const;
   QString feedback() const;
 
   // Reject invalid indices. Clicking the selected tile deselects it.
   Q_INVOKABLE bool toggleSelection(int index);
-  // This GUI slice supports the opening move only.
   Q_INVOKABLE bool playOpening();
+  Q_INVOKABLE bool playLeft();
+  Q_INVOKABLE bool playRight();
 
 signals:
   void selectionChanged();
   void gameStateChanged();
   void feedbackChanged();
+  void legalMovesChanged();
 
 private:
   void refreshState();
   void setFeedback(QString message);
+  bool canPlayAt(BoardEnd end) const;
+  bool playAt(BoardEnd end);
+  bool submitSelected(std::optional<BoardEnd> end);
 
   std::mt19937 m_engine;
   Match m_match;

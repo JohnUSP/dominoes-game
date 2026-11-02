@@ -17,6 +17,12 @@ int BoardTileModel::rowCount(const QModelIndex &parent) const {
 
 int BoardTileModel::count() const noexcept { return static_cast<int>(m_tiles.size()); }
 
+bool BoardTileModel::hasTurns() const {
+  return std::any_of(m_layout.tiles.begin(), m_layout.tiles.end(), [](const auto &tile) {
+    return tile.incoming_direction != tile.outgoing_direction;
+  });
+}
+
 QVariant BoardTileModel::data(const QModelIndex &index, int role) const {
   if (!index.isValid() || index.model() != this || index.column() != 0 ||
       index.row() < 0 || index.row() >= count()) {
@@ -68,6 +74,7 @@ void BoardTileModel::set_tiles(std::span<const Block> tiles,
   m_layout = std::move(layout);
   m_opening_index = opening_index;
   endResetModel();
+  emit geometryChanged();
   if (count_changed) emit countChanged();
 }
 
@@ -83,6 +90,7 @@ void BoardTileModel::setViewport(double width, double height) {
   m_viewport_height = height;
   m_layout = std::move(layout);
   endResetModel();
+  emit geometryChanged();
 }
 
 } // namespace dominoes::gui

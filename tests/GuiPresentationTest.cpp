@@ -245,6 +245,205 @@ TEST(MatchViewModelTest, EngineRejectsAnIndexFromAnInvalidDisplaySnapshot) {
   EXPECT_EQ(board_resets.count(), 0);
 }
 
+TEST(MatchViewModelTest, LegalEndsFollowEngineAndClearWithSelection) {
+  std::mt19937 random{42};
+  Match expected{names(), random};
+  ASSERT_EQ(expected.play({3}), ActionResult::accepted);
+  MatchViewModel view{names(), std::mt19937{42}};
+  ASSERT_TRUE(view.toggleSelection(3));
+  EXPECT_FALSE(view.canPlayLeft());
+  EXPECT_FALSE(view.canPlayRight());
+  ASSERT_TRUE(view.playOpening());
+  QSignalSpy changes{&view, &MatchViewModel::legalMovesChanged};
+  bool has_legal = false, has_illegal = false;
+  for (int index = 0; index < view.hand()->rowCount(); ++index) {
+    ASSERT_TRUE(view.toggleSelection(index));
+    const auto hand_index = static_cast<std::size_t>(index);
+    const bool left = expected.current_hand().can_play({hand_index, BoardEnd::left});
+    const bool right = expected.current_hand().can_play({hand_index, BoardEnd::right});
+    EXPECT_EQ(view.canPlayLeft(), left);
+    EXPECT_EQ(view.canPlayRight(), right);
+    has_legal |= left || right;
+    has_illegal |= !left && !right;
+    ASSERT_TRUE(view.toggleSelection(index));
+    EXPECT_FALSE(view.canPlayLeft());
+    EXPECT_FALSE(view.canPlayRight());
+  }
+  EXPECT_TRUE(has_legal);
+  EXPECT_TRUE(has_illegal);
+  EXPECT_EQ(changes.count(), 20);
+}
+
+TEST(MatchViewModelTest, RejectsAnIllegalEndWithoutChangingTheHandBoardOrSelection) {
+  std::mt19937 random{42};
+  Match expected{names(), random};
+  ASSERT_EQ(expected.play({3}), ActionResult::accepted);
+  MatchViewModel view{names(), std::mt19937{42}};
+  EXPECT_FALSE(view.playLeft());
+  EXPECT_FALSE(view.playRight());
+  ASSERT_TRUE(view.toggleSelection(3));
+  ASSERT_TRUE(view.playOpening());
+  EXPECT_FALSE(view.playLeft()); // No selection after opening.
+  int rejected_index = -1;
+  for (int index = 0; index < view.hand()->rowCount(); ++index) {
+    if (!expected.current_hand().can_play({static_cast<std::size_t>(index), BoardEnd::left})) {
+      rejected_index = index;
+      break;
+    }
+  }
+  ASSERT_GE(rejected_index, 0);
+  ASSERT_TRUE(view.toggleSelection(rejected_index));
+  const auto player = view.currentPlayerName();
+  QSignalSpy state{&view, &MatchViewModel::gameStateChanged};
+  QSignalSpy hand{view.hand(), &QAbstractItemModel::modelReset};
+  QSignalSpy board{view.board(), &QAbstractItemModel::modelReset};
+  EXPECT_FALSE(view.playLeft());
+  EXPECT_EQ(view.selectedHandIndex(), rejected_index);
+  EXPECT_EQ(view.currentPlayerName(), player);
+  EXPECT_EQ(view.hand()->rowCount(), 10);
+  EXPECT_EQ(view.board()->count(), 1);
+  EXPECT_EQ(state.count(), 0);
+  EXPECT_EQ(hand.count(), 0);
+  EXPECT_EQ(board.count(), 0);
+}
+
+TEST(MatchViewModelTest, OpeningDoubleAllowsOnlyRightAndRejectsALeftRequest) {
+  std::mt19937 random{42};
+  Match expected{names(), random};
+  ASSERT_TRUE(expected.players()[expected.current_hand().current_player_index()].hand()[2].is_double());
+  ASSERT_EQ(expected.play({2}), ActionResult::accepted);
+  MatchViewModel view{names(), std::mt19937{42}};
+  ASSERT_TRUE(view.toggleSelection(2));
+  ASSERT_TRUE(view.playOpening());
+  int matching = -1;
+  for (int index = 0; index < view.hand()->rowCount(); ++index) {
+    if (expected.current_hand().can_play({static_cast<std::size_t>(index), BoardEnd::right})) {
+      matching = index;
+      break;
+    }
+  }
+  ASSERT_GE(matching, 0);
+  ASSERT_TRUE(view.toggleSelection(matching));
+  EXPECT_FALSE(view.canPlayLeft());
+  EXPECT_TRUE(view.canPlayRight());
+  EXPECT_FALSE(view.playLeft());
+  EXPECT_EQ(view.selectedHandIndex(), matching);
+  EXPECT_EQ(view.board()->count(), 1);
+  EXPECT_TRUE(view.playRight());
+  EXPECT_EQ(view.board()->count(), 2);
+  EXPECT_EQ(view.selectedHandIndex(), -1);
+}
+
+TEST(MatchViewModelTest, PlaysBothEndsThroughACompleteHandWithFixedSizeAndDisablesFinishedPlay) {
+  // This deal completes with ordinary placements alone; passing is a later GUI slice.
+  std::mt19937 random{3847};
+  Match expected{names(), random};
+  MatchViewModel view{names(), std::mt19937{3847}};
+  bool played_left = false, played_right = false, both_legal = false;
+  double fixed_width = 0;
+  for (int turn = 0; turn < 40 && !expected.current_hand().hand_result(); ++turn) {
+    const auto &game = expected.current_hand();
+    const auto &hand = expected.players()[game.current_player_index()].hand();
+    std::optional<Move> move;
+    for (std::size_t index = 0; index < hand.size() && !move; ++index) {
+      for (const auto end : {BoardEnd::left, BoardEnd::right}) {
+        if (game.can_play({index, end})) { move = Move{index, end}; break; }
+      }
+    }
+    ASSERT_TRUE(move);
+    ASSERT_TRUE(view.toggleSelection(static_cast<int>(move->hand_index)));
+    if (game.board().blocks().empty()) {
+      ASSERT_TRUE(view.playOpening());
+    } else {
+      EXPECT_EQ(view.canPlayLeft(), game.can_play({move->hand_index, BoardEnd::left}));
+      EXPECT_EQ(view.canPlayRight(), game.can_play({move->hand_index, BoardEnd::right}));
+      both_legal |= view.canPlayLeft() && view.canPlayRight();
+      if (*move->destination == BoardEnd::left) {
+        ASSERT_TRUE(view.playLeft());
+        played_left = true;
+      } else {
+        ASSERT_TRUE(view.playRight());
+        played_right = true;
+      }
+    }
+    ASSERT_NE(expected.play(*move), ActionResult::rejected);
+    const auto &blocks = expected.current_hand().board().blocks();
+    ASSERT_EQ(view.board()->count(), static_cast<int>(blocks.size()));
+    for (int index = 0; index < view.board()->count(); ++index) {
+      const auto row = view.board()->index(index, 0);
+      EXPECT_EQ(view.board()->data(row, BoardTileModel::LeftValueRole).toInt(),
+                to_value(blocks[index].left()));
+      EXPECT_EQ(view.board()->data(row, BoardTileModel::RightValueRole).toInt(),
+                to_value(blocks[index].right()));
+    }
+    const auto &player = expected.players()[expected.current_hand().current_player_index()];
+    EXPECT_EQ(view.currentPlayerName().toStdString(), player.name());
+    ASSERT_EQ(view.hand()->rowCount(), static_cast<int>(player.hand().size()));
+    for (int index = 0; index < view.hand()->rowCount(); ++index) {
+      const auto row = view.hand()->index(index, 0);
+      EXPECT_EQ(view.hand()->data(row, TileListModel::LeftValueRole).toInt(),
+                to_value(player.hand()[index].left()));
+      EXPECT_EQ(view.hand()->data(row, TileListModel::RightValueRole).toInt(),
+                to_value(player.hand()[index].right()));
+    }
+    EXPECT_EQ(view.selectedHandIndex(), -1);
+    EXPECT_FALSE(view.canPlayLeft());
+    EXPECT_FALSE(view.canPlayRight());
+    const auto width = view.board()->data(view.board()->index(0, 0), BoardTileModel::TileWidthRole).toDouble();
+    if (turn == 0) fixed_width = width;
+    EXPECT_DOUBLE_EQ(width, fixed_width);
+  }
+  ASSERT_TRUE(expected.current_hand().hand_result());
+  EXPECT_TRUE(played_left);
+  EXPECT_TRUE(played_right);
+  EXPECT_TRUE(both_legal);
+  EXPECT_TRUE(view.handFinished());
+  EXPECT_FALSE(view.playLeft());
+  EXPECT_FALSE(view.playRight());
+  EXPECT_FALSE(view.playOpening());
+  EXPECT_FALSE(view.toggleSelection(0));
+  EXPECT_EQ(view.feedback(), "The hand is finished.");
+}
+
+TEST(BoardTileModelTest, OnlyActualBendsSwitchTheBoardToUpperAndLowerRegions) {
+  BoardTileModel model;
+  EXPECT_FALSE(model.hasTurns());
+  QSignalSpy geometry{&model, &BoardTileModel::geometryChanged};
+  for (const Block tile : {Block{Number::THREE, Number::SIX}, Block{Number::SIX, Number::SIX}}) {
+    const std::array tiles{tile};
+    model.set_tiles(tiles, 0);
+    const auto row = model.index(0, 0);
+    EXPECT_EQ(model.data(row, BoardTileModel::AngleRole).toInt(), tile.is_double() ? 90 : 0);
+    EXPECT_FALSE(model.hasTurns()); // An upright double is not a bend.
+  }
+  const auto chain = board_preview_chain(3);
+  model.set_tiles(chain.tiles, chain.opening_index);
+  EXPECT_FALSE(model.hasTurns());
+  EXPECT_EQ(geometry.count(), 3);
+  model.set_tiles(board_preview_tiles(), 12);
+  EXPECT_TRUE(model.hasTurns());
+  model.set_tiles({}, std::nullopt);
+  EXPECT_FALSE(model.hasTurns());
+  EXPECT_EQ(geometry.count(), 5);
+}
+
+TEST(BoardTileModelTest, RegionOrientationReactsToResizingEvenWhenTileCountDoesNotChange) {
+  BoardTileModel model;
+  model.set_tiles(board_preview_tiles(), 12);
+  ASSERT_TRUE(model.hasTurns());
+  QSignalSpy geometry{&model, &BoardTileModel::geometryChanged};
+  QSignalSpy count_changes{&model, &BoardTileModel::countChanged};
+  model.setViewport(10000, 1000);
+  EXPECT_FALSE(model.hasTurns());
+  EXPECT_EQ(model.count(), 40);
+  model.setViewport(420, 700);
+  EXPECT_TRUE(model.hasTurns());
+  EXPECT_EQ(model.count(), 40);
+  model.setViewport(420, 700);
+  EXPECT_EQ(geometry.count(), 2);
+  EXPECT_EQ(count_changes.count(), 0);
+}
+
 TEST(BoardTileModelTest, ExposesCopiedValuesAndLayoutRoles) {
   BoardTileModel model;
   QAbstractItemModelTester tester{

@@ -68,7 +68,7 @@ void finish_hand(Match &match) {
     bool played = false;
     for (std::size_t index = 0; index < hand.size() && !played; ++index) {
       for (const BoardEnd end : {BoardEnd::left, BoardEnd::right}) {
-        if (game.board().can_place(hand[index], end)) {
+        if (game.can_play({index, end})) {
           ASSERT_NE(match.play({index, end}), ActionResult::rejected);
           played = true;
           break;

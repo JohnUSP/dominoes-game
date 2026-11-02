@@ -19,6 +19,7 @@ qt_add_qml_module(dominoes_gui
         TileGallery.qml
         HandView.qml
         BoardView.qml
+        BoardEndTarget.qml
         GameView.qml
         BoardPreview.qml
     RESOURCES

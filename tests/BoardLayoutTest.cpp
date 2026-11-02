@@ -456,7 +456,7 @@ TEST(BoardLayoutTest, FitsChainsProducedByActualPlayAtEitherEnd) {
         const auto first = turn % 2 == 0 ? BoardEnd::left : BoardEnd::right;
         const auto second = first == BoardEnd::left ? BoardEnd::right : BoardEnd::left;
         for (const auto end : {first, second}) {
-          if (game.board().blocks().empty() || game.board().can_place(hand[index], end)) {
+          if (game.can_play({index, end})) {
             ASSERT_NE(match.play({index, end}), ActionResult::rejected);
             played = true;
             break;

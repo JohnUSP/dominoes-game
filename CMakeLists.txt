@@ -42,7 +42,7 @@ target_link_libraries(dominoes
 include(CTest)
 if(BUILD_TESTING)
     find_package(GTest REQUIRED)
-    add_executable(match_tests tests/MatchTest.cpp tests/BoardTest.cpp)
+    add_executable(match_tests tests/MatchTest.cpp tests/BoardTest.cpp tests/GameTest.cpp)
     target_link_libraries(match_tests PRIVATE game_engine GTest::gtest_main)
     include(GoogleTest)
     gtest_discover_tests(match_tests)

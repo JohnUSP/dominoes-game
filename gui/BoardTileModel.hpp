@@ -16,6 +16,7 @@ class BoardTileModel : public QAbstractListModel {
   QML_ELEMENT
   QML_UNCREATABLE("Board models are owned by the presentation layer")
   Q_PROPERTY(int count READ count NOTIFY countChanged)
+  Q_PROPERTY(bool hasTurns READ hasTurns NOTIFY geometryChanged)
 
 public:
   enum Role {
@@ -29,6 +30,7 @@ public:
   QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
   QHash<int, QByteArray> roleNames() const override;
   int count() const noexcept;
+  bool hasTurns() const;
 
   void set_tiles(std::span<const Block> tiles,
                  std::optional<std::size_t> opening_index);
@@ -36,6 +38,7 @@ public:
 
 signals:
   void countChanged();
+  void geometryChanged();
 
 private:
   std::vector<Block> m_tiles;

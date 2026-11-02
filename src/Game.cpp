@@ -21,37 +21,44 @@ const std::optional<HandResult> &Game::hand_result() const noexcept {
   return m_hand_result;
 }
 
-ActionResult Game::play(const Move &move) {
+std::optional<BoardEnd> Game::resolve_destination(const Move &move) const {
   if (m_hand_result) {
-    return ActionResult::rejected;
+    return std::nullopt;
   }
 
-  Player &player = m_players[m_current_player];
+  const Player &player = m_players[m_current_player];
   if (move.hand_index >= player.hand().size()) {
-    return ActionResult::rejected;
+    return std::nullopt;
   }
+  const Block &block = player.hand()[move.hand_index];
+  if (m_board.blocks().empty()) return BoardEnd::right;
+  if (m_board.blocks().size() == 1 && m_board.blocks().front().is_double()) {
+    if ((move.destination && *move.destination != BoardEnd::right) ||
+        !m_board.can_place(block, BoardEnd::right)) return std::nullopt;
+    return BoardEnd::right;
+  }
+  if (move.destination) {
+    return m_board.can_place(block, *move.destination) ? move.destination : std::nullopt;
+  }
+  const bool matches_left = m_board.can_place(block, BoardEnd::left);
+  const bool matches_right = m_board.can_place(block, BoardEnd::right);
+  if ((!matches_left && !matches_right) ||
+      (matches_left && matches_right && m_board.left_end() != m_board.right_end())) {
+    return std::nullopt;
+  }
+  return matches_right ? BoardEnd::right : BoardEnd::left;
+}
 
+bool Game::can_play(const Move &move) const { return resolve_destination(move).has_value(); }
+
+ActionResult Game::play(const Move &move) {
+  const auto destination = resolve_destination(move);
+  if (!destination) return ActionResult::rejected;
+  Player &player = m_players[m_current_player];
   // Place first so an allocation failure cannot remove a tile from the hand.
   const Block &block = player.hand()[move.hand_index];
-  bool placed;
-  if (m_board.blocks().empty()) {
-    placed = m_board.open(block);
-  } else {
-    auto destination = move.destination;
-    if (!destination) {
-      const bool matches_left = m_board.can_place(block, BoardEnd::left);
-      const bool matches_right = m_board.can_place(block, BoardEnd::right);
-      if (!matches_left && !matches_right) {
-        return ActionResult::rejected;
-      }
-      if (matches_left && matches_right &&
-          m_board.left_end() != m_board.right_end()) {
-        return ActionResult::rejected;
-      }
-      destination = matches_right ? BoardEnd::right : BoardEnd::left;
-    }
-    placed = m_board.place(block, *destination);
-  }
+  const bool placed = m_board.blocks().empty() ? m_board.open(block)
+                                               : m_board.place(block, *destination);
   if (!placed) {
     return ActionResult::rejected;
   }
@@ -73,7 +80,7 @@ ActionResult Game::pass() {
     return ActionResult::rejected;
   }
 
-  if (has_legal_move(m_players[m_current_player])) {
+  if (has_legal_move()) {
     finish_hand(HandEndReason::invalid_pass, 1 - m_current_player % 2);
     return ActionResult::hand_ended;
   }
@@ -98,10 +105,10 @@ ActionResult Game::transfer_opening() {
   return ActionResult::accepted;
 }
 
-bool Game::has_legal_move(const Player &player) const {
-  for (const Block &block : player.hand()) {
-    if (m_board.can_place(block, BoardEnd::left) ||
-        m_board.can_place(block, BoardEnd::right)) {
+bool Game::has_legal_move() const {
+  const auto &hand = m_players[m_current_player].hand();
+  for (std::size_t index = 0; index < hand.size(); ++index) {
+    if (can_play({index, BoardEnd::left}) || can_play({index, BoardEnd::right})) {
       return true;
     }
   }

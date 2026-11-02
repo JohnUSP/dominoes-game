@@ -27,6 +27,10 @@ hand ends, `match.start_next_hand(engine)` deals again unless the match has ende
 Both deals use the same internal routine. The random engine is supplied by the
 caller so tests can use reproducible seeds; Match does not retain a reference to it.
 
+`Game::can_play(move)` checks the same rules as `play()` without changing state.
+When the opening tile is a double, the first tile added to it must go to the
+right. Later placements may use either legal end.
+
 `players()` and `current_hand()` provide read-only access. Reacquire hand and tile
 references after starting another hand. `Game` borrows the players owned by
 `Match`; both classes disable copying and moving to protect live state and
@@ -51,9 +55,15 @@ Run the console application with `./build/dominoes`, or open the desktop hand
 view with `./build/gui/dominoes_gui`. The desktop app creates a real match and
 displays the opening player's name and ten dealt tiles. Clicking a tile toggles
 its selection and plays a short sound. Select a tile and click Play to open the
-hand. The board then displays that tile, and the name and hand advance to the
-next player. This GUI slice supports the opening move; later placements and
-passing remain pending.
+hand. For later moves, select a tile and click anywhere in its destination half
+of the board. With a single-row snake, the left/right halves choose the left/right
+ends. Once the snake turns, the top half chooses the upper (right) end and the
+bottom half chooses the lower (left) end. These regions have no visual highlight.
+An upright opening double still uses left/right halves, and its first extension
+must go right. An illegal end request leaves the tile selected and shows feedback.
+Accepted moves update the board, current player and hand, and
+clear selection. A rejected move preserves them. Completed hands disable play.
+Passing, the score display and starting the next hand remain pending in the GUI.
 
 Use `./build/gui/dominoes_gui --tile-gallery` to inspect all 55 tile designs.
 Use `./build/gui/dominoes_gui --board-preview` to inspect a connected 40-tile

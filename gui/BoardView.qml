@@ -7,6 +7,10 @@ Rectangle {
     id: boardView
 
     required property BoardTileModel tiles
+    property bool endSelectionEnabled: false
+
+    signal leftEndClicked()
+    signal rightEndClicked()
 
     function updateViewport(): void {
         if (boardView.tiles && surface) {
@@ -67,5 +71,26 @@ Rectangle {
                 enabled: false
             }
         }
+
+    }
+
+    BoardEndTarget {
+        z: 1
+        area: boardView.tiles.hasTurns
+            ? Qt.rect(0, boardView.height / 2, boardView.width, boardView.height / 2)
+            : Qt.rect(0, 0, boardView.width / 2, boardView.height)
+        accessibleName: boardView.tiles.hasTurns ? "Play at the lower end" : "Play at the left end"
+        visible: boardView.endSelectionEnabled
+        onClicked: boardView.leftEndClicked()
+    }
+
+    BoardEndTarget {
+        z: 1
+        area: boardView.tiles.hasTurns
+            ? Qt.rect(0, 0, boardView.width, boardView.height / 2)
+            : Qt.rect(boardView.width / 2, 0, boardView.width / 2, boardView.height)
+        accessibleName: boardView.tiles.hasTurns ? "Play at the upper end" : "Play at the right end"
+        visible: boardView.endSelectionEnabled
+        onClicked: boardView.rightEndClicked()
     }
 }
