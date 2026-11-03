@@ -26,9 +26,20 @@ class MatchViewModel : public QObject {
   Q_PROPERTY(int selectedHandIndex READ selectedHandIndex NOTIFY selectionChanged)
   Q_PROPERTY(bool openingAvailable READ openingAvailable NOTIFY gameStateChanged)
   Q_PROPERTY(bool handFinished READ handFinished NOTIFY gameStateChanged)
+  Q_PROPERTY(bool matchFinished READ matchFinished NOTIFY gameStateChanged)
+  Q_PROPERTY(bool nextHandAvailable READ nextHandAvailable NOTIFY gameStateChanged)
+  Q_PROPERTY(QString matchWinningTeamName READ matchWinningTeamName NOTIFY gameStateChanged)
   Q_PROPERTY(bool passAvailable READ passAvailable NOTIFY gameStateChanged)
   Q_PROPERTY(bool canPlayLeft READ canPlayLeft NOTIFY legalMovesChanged)
   Q_PROPERTY(bool canPlayRight READ canPlayRight NOTIFY legalMovesChanged)
+  Q_PROPERTY(QString firstTeamName READ firstTeamName CONSTANT)
+  Q_PROPERTY(QString secondTeamName READ secondTeamName CONSTANT)
+  Q_PROPERTY(int firstTeamScore READ firstTeamScore NOTIFY gameStateChanged)
+  Q_PROPERTY(int secondTeamScore READ secondTeamScore NOTIFY gameStateChanged)
+  Q_PROPERTY(QString handEndReason READ handEndReason NOTIFY gameStateChanged)
+  Q_PROPERTY(QString handWinningTeamName READ handWinningTeamName NOTIFY gameStateChanged)
+  Q_PROPERTY(bool handTied READ handTied NOTIFY gameStateChanged)
+  Q_PROPERTY(int handAwardedPoints READ handAwardedPoints NOTIFY gameStateChanged)
   Q_PROPERTY(QString feedback READ feedback NOTIFY feedbackChanged)
 
 public:
@@ -41,10 +52,21 @@ public:
   int selectedHandIndex() const noexcept;
   bool openingAvailable() const noexcept;
   bool handFinished() const noexcept;
+  bool matchFinished() const noexcept;
+  bool nextHandAvailable() const noexcept;
+  QString matchWinningTeamName() const;
   // Available during an open hand; the engine penalizes passes when a move exists.
   bool passAvailable() const noexcept;
   bool canPlayLeft() const;
   bool canPlayRight() const;
+  QString firstTeamName() const;
+  QString secondTeamName() const;
+  int firstTeamScore() const noexcept;
+  int secondTeamScore() const noexcept;
+  QString handEndReason() const;
+  QString handWinningTeamName() const;
+  bool handTied() const noexcept;
+  int handAwardedPoints() const noexcept;
   QString feedback() const;
 
   // Reject invalid indices. Clicking the selected tile deselects it.
@@ -53,6 +75,7 @@ public:
   Q_INVOKABLE bool playLeft();
   Q_INVOKABLE bool playRight();
   Q_INVOKABLE bool passTurn();
+  Q_INVOKABLE bool startNextHand();
 
 signals:
   void selectionChanged();

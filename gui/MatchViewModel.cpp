@@ -43,9 +43,73 @@ bool MatchViewModel::handFinished() const noexcept {
   return m_match.current_hand().hand_result().has_value();
 }
 
+bool MatchViewModel::matchFinished() const noexcept {
+  return m_match.winning_team().has_value();
+}
+
+bool MatchViewModel::nextHandAvailable() const noexcept {
+  return handFinished() && !matchFinished();
+}
+
+QString MatchViewModel::matchWinningTeamName() const {
+  const auto winner = m_match.winning_team();
+  return winner ? QString::fromStdString(m_match.team_names()[*winner]) : QString{};
+}
+
+bool MatchViewModel::startNextHand() {
+  if (!m_match.start_next_hand(m_engine)) {
+    setFeedback(matchFinished() ? QStringLiteral("The match is finished.")
+        : QStringLiteral("Finish the current hand before starting another."));
+    return false;
+  }
+  refreshState();
+  setFeedback(QStringLiteral("%1 opens the next hand. Select a tile, then click Play.")
+                  .arg(currentPlayerName()));
+  return true;
+}
+
 bool MatchViewModel::passAvailable() const noexcept {
   const auto &game = m_match.current_hand();
   return !game.board().blocks().empty() && !game.hand_result();
+}
+
+QString MatchViewModel::firstTeamName() const {
+  return QString::fromStdString(m_match.team_names()[0]);
+}
+
+QString MatchViewModel::secondTeamName() const {
+  return QString::fromStdString(m_match.team_names()[1]);
+}
+
+int MatchViewModel::firstTeamScore() const noexcept { return m_match.scores()[0]; }
+int MatchViewModel::secondTeamScore() const noexcept { return m_match.scores()[1]; }
+
+QString MatchViewModel::handEndReason() const {
+  const auto &result = m_match.current_hand().hand_result();
+  if (!result) return {};
+  switch (result->reason) {
+  case HandEndReason::domination: return QStringLiteral("Last tile played");
+  case HandEndReason::blocked: return QStringLiteral("Blocked hand");
+  case HandEndReason::invalid_pass: return QStringLiteral("Invalid pass");
+  case HandEndReason::timeout: return QStringLiteral("Time limit expired");
+  }
+  return {};
+}
+
+QString MatchViewModel::handWinningTeamName() const {
+  const auto &result = m_match.current_hand().hand_result();
+  if (!result || !result->winning_team) return {};
+  return QString::fromStdString(m_match.team_names()[*result->winning_team]);
+}
+
+bool MatchViewModel::handTied() const noexcept {
+  const auto &result = m_match.current_hand().hand_result();
+  return result && !result->winning_team;
+}
+
+int MatchViewModel::handAwardedPoints() const noexcept {
+  const auto &result = m_match.current_hand().hand_result();
+  return result ? result->awarded_points : 0;
 }
 
 bool MatchViewModel::canPlayAt(BoardEnd end) const {

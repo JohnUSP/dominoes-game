@@ -68,7 +68,16 @@ tile. A valid pass advances the turn; passing while any tile in the hand can pla
 ends the hand with the engine's invalid-pass penalty. Four consecutive valid passes
 end a blocked hand. Passing leaves the board layout unchanged and clears selection.
 The GUI reports blocked hands and invalid passes and disables actions after completion.
-The score display and starting the next hand remain pending in the GUI.
+Both team names and cumulative scores remain visible above the board. When the
+hand ends, its result replaces the hand display: end reason, winning team and
+awarded points, or a tied hand with no points. These values come directly from
+`HandResult` and `Match::scores()`; the presentation layer does not calculate scores.
+The result uses the existing hand area so completing a hand does not resize the board.
+After a completed hand, Next hand asks the engine to deal again and choose the
+opener. It clears the previous board, result and selection, preserves both team
+scores and starts the new board at the center. Once a team reaches the engine's
+100-point target, the result panel announces the match winner and Next hand is
+no longer available. The GUI supports playing a complete match.
 
 Use `./build/gui/dominoes_gui --tile-gallery` to inspect all 55 tile designs.
 Use `./build/gui/dominoes_gui --board-preview` to inspect a connected 40-tile

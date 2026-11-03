@@ -21,6 +21,8 @@ qt_add_qml_module(dominoes_gui
         BoardView.qml
         BoardEndTarget.qml
         GameView.qml
+        ScoreView.qml
+        HandResultView.qml
         BoardPreview.qml
     RESOURCES
         sounds/tile-click.wav

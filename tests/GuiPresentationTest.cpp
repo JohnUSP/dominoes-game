@@ -18,6 +18,32 @@ namespace {
 
 std::array<std::string, 4> names() { return {"John", "Kyle", "Jane", "Kate"}; }
 
+void expect_scores_and_result(const MatchViewModel &view, const Match &match) {
+  EXPECT_EQ(view.firstTeamName().toStdString(), match.team_names()[0]);
+  EXPECT_EQ(view.secondTeamName().toStdString(), match.team_names()[1]);
+  EXPECT_EQ(view.firstTeamScore(), match.scores()[0]);
+  EXPECT_EQ(view.secondTeamScore(), match.scores()[1]);
+  const auto &result = match.current_hand().hand_result();
+  const auto winner = match.winning_team();
+  EXPECT_EQ(view.matchFinished(), winner.has_value());
+  EXPECT_EQ(view.nextHandAvailable(), result.has_value() && !winner);
+  EXPECT_EQ(view.matchWinningTeamName().toStdString(),
+      winner ? match.team_names()[*winner] : std::string{});
+  EXPECT_EQ(view.handFinished(), result.has_value());
+  if (!result) {
+    EXPECT_TRUE(view.handEndReason().isEmpty());
+    EXPECT_TRUE(view.handWinningTeamName().isEmpty());
+    EXPECT_FALSE(view.handTied());
+    EXPECT_EQ(view.handAwardedPoints(), 0);
+  } else {
+    EXPECT_EQ(view.handTied(), !result->winning_team);
+    EXPECT_EQ(view.handAwardedPoints(), result->awarded_points);
+    EXPECT_FALSE(view.handEndReason().isEmpty());
+    EXPECT_EQ(view.handWinningTeamName().toStdString(),
+        result->winning_team ? match.team_names()[*result->winning_team] : std::string{});
+  }
+}
+
 void expect_current_hand(MatchViewModel &view, const Match &match) {
   const auto &game = match.current_hand();
   const auto &player = match.players()[game.current_player_index()];
@@ -30,6 +56,52 @@ void expect_current_hand(MatchViewModel &view, const Match &match) {
     EXPECT_EQ(view.hand()->data(index, TileListModel::RightValueRole).toInt(),
               to_value(player.hand()[row].right()));
   }
+}
+
+void finish_hand_through_view(MatchViewModel &view, Match &expected) {
+  for (int turn = 0; turn < 200 && !expected.current_hand().hand_result(); ++turn) {
+    const auto &game = expected.current_hand();
+    const auto &hand = expected.players()[game.current_player_index()].hand();
+    std::optional<Move> move;
+    for (std::size_t index = 0; index < hand.size() && !move; ++index) {
+      for (const auto end : {BoardEnd::left, BoardEnd::right}) {
+        if (game.can_play({index, end})) { move = Move{index, end}; break; }
+      }
+    }
+    if (move) {
+      const auto index = static_cast<int>(move->hand_index);
+      if (view.selectedHandIndex() != index) ASSERT_TRUE(view.toggleSelection(index));
+      if (game.board().blocks().empty()) {
+        ASSERT_TRUE(view.playOpening());
+      } else if (*move->destination == BoardEnd::left) {
+        ASSERT_TRUE(view.playLeft());
+      } else {
+        ASSERT_TRUE(view.playRight());
+      }
+      ASSERT_NE(expected.play(*move), ActionResult::rejected);
+    } else {
+      ASSERT_TRUE(view.passTurn());
+      ASSERT_NE(expected.pass(), ActionResult::rejected);
+    }
+    expect_current_hand(view, expected);
+    expect_scores_and_result(view, expected);
+  }
+  ASSERT_TRUE(expected.current_hand().hand_result());
+}
+
+void expect_fresh_hand(MatchViewModel &view, const Match &expected) {
+  expect_current_hand(view, expected);
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(view.hand()->rowCount(), 10);
+  EXPECT_EQ(view.board()->count(), 0);
+  EXPECT_FALSE(view.board()->hasTurns());
+  EXPECT_EQ(view.selectedHandIndex(), -1);
+  EXPECT_TRUE(view.openingAvailable());
+  EXPECT_FALSE(view.handFinished());
+  EXPECT_FALSE(view.passAvailable());
+  EXPECT_FALSE(view.canPlayLeft());
+  EXPECT_FALSE(view.canPlayRight());
+  EXPECT_FALSE(view.nextHandAvailable());
 }
 
 TEST(TileListModelTest, ExposesReadOnlyRolesAndRejectsInvalidIndices) {
@@ -108,6 +180,26 @@ TEST(MatchViewModelTest, DisplaysTheEngineCurrentPlayersTenTiles) {
   EXPECT_EQ(view_model.selectedHandIndex(), -1);
   EXPECT_EQ(view_model.board()->rowCount(), 0);
   EXPECT_TRUE(view_model.openingAvailable());
+}
+
+TEST(MatchViewModelTest, DisplaysTeamPartnershipsAndZeroScoresBeforeAnyResult) {
+  const std::array<std::string, 4> players{"A1", "B1", "A2", "B2"};
+  std::mt19937 random{42};
+  Match expected{players, random};
+  MatchViewModel view{players, std::mt19937{42}};
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(view.firstTeamName(), "A1 & A2");
+  EXPECT_EQ(view.secondTeamName(), "B1 & B2");
+  EXPECT_EQ(view.firstTeamScore(), 0);
+  EXPECT_EQ(view.secondTeamScore(), 0);
+  QSignalSpy state{&view, &MatchViewModel::gameStateChanged};
+  ASSERT_TRUE(view.toggleSelection(3));
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(state.count(), 0);
+  ASSERT_TRUE(view.playOpening());
+  ASSERT_EQ(expected.play({3}), ActionResult::accepted);
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(state.count(), 1);
 }
 
 TEST(MatchViewModelTest, SelectionTogglesAndMovesWithoutChangingTheHand) {
@@ -408,6 +500,10 @@ TEST(MatchViewModelTest, PlaysBothEndsThroughACompleteHandWithFixedSizeAndDisabl
     EXPECT_DOUBLE_EQ(width, fixed_width);
   }
   ASSERT_TRUE(expected.current_hand().hand_result());
+  ASSERT_EQ(expected.current_hand().hand_result()->reason, HandEndReason::domination);
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(view.handEndReason(), "Last tile played");
+  EXPECT_FALSE(view.handTied());
   EXPECT_TRUE(played_left);
   EXPECT_TRUE(played_right);
   EXPECT_TRUE(both_legal);
@@ -419,6 +515,7 @@ TEST(MatchViewModelTest, PlaysBothEndsThroughACompleteHandWithFixedSizeAndDisabl
   EXPECT_FALSE(view.playOpening());
   EXPECT_FALSE(view.toggleSelection(0));
   EXPECT_EQ(view.feedback(), "The hand is finished.");
+  expect_scores_and_result(view, expected);
 }
 
 TEST(MatchViewModelTest, PassBeforeOpeningIsUnavailableAndPreservesSelectionAndState) {
@@ -468,6 +565,7 @@ TEST(MatchViewModelTest, ValidPassAdvancesThePlayerAndClearsSelectionWithoutRebu
   ASSERT_EQ(expected.pass(), ActionResult::accepted);
   ASSERT_TRUE(view.passTurn());
   expect_current_hand(view, expected);
+  expect_scores_and_result(view, expected);
   EXPECT_EQ(view.selectedHandIndex(), -1);
   EXPECT_FALSE(view.canPlayLeft());
   EXPECT_FALSE(view.canPlayRight());
@@ -506,6 +604,9 @@ TEST(MatchViewModelTest, PassChecksTheWholeHandAndReportsAnInvalidPassPenalty) {
   ASSERT_EQ(game.hand_result()->reason, HandEndReason::invalid_pass);
   ASSERT_TRUE(view.passTurn());
   expect_current_hand(view, expected);
+  expect_scores_and_result(view, expected);
+  EXPECT_EQ(view.handEndReason(), "Invalid pass");
+  EXPECT_FALSE(view.handTied());
   EXPECT_TRUE(view.handFinished());
   EXPECT_FALSE(view.passAvailable());
   EXPECT_EQ(view.selectedHandIndex(), -1);
@@ -560,17 +661,194 @@ TEST(MatchViewModelTest, FourConsecutiveValidPassesReportABlockedHandAndDisableP
       ++consecutive_passes;
     }
     expect_current_hand(view, expected);
+    expect_scores_and_result(view, expected);
     EXPECT_EQ(view.selectedHandIndex(), -1);
     EXPECT_EQ(view.handFinished(), expected.current_hand().hand_result().has_value());
     EXPECT_EQ(view.passAvailable(), !expected.current_hand().hand_result());
   }
   ASSERT_TRUE(expected.current_hand().hand_result());
   ASSERT_EQ(expected.current_hand().hand_result()->reason, HandEndReason::blocked);
+  EXPECT_EQ(view.handEndReason(), "Blocked hand");
+  expect_scores_and_result(view, expected);
   EXPECT_EQ(consecutive_passes, 4);
   EXPECT_TRUE(view.handFinished());
   EXPECT_FALSE(view.passAvailable());
   EXPECT_TRUE(view.feedback().contains("blocked"));
   EXPECT_FALSE(view.passTurn());
+}
+
+TEST(MatchViewModelTest, TiedBlockedHandHasNoWinningTeamAndAwardsNoPoints) {
+  std::mt19937 random{13};
+  Match expected{names(), random};
+  MatchViewModel view{names(), std::mt19937{13}};
+  for (int turn = 0; turn < 128 && !expected.current_hand().hand_result(); ++turn) {
+    const auto &game = expected.current_hand();
+    const auto &hand = expected.players()[game.current_player_index()].hand();
+    std::optional<Move> move;
+    for (std::size_t index = 0; index < hand.size() && !move; ++index) {
+      for (const auto end : {BoardEnd::left, BoardEnd::right}) {
+        if (game.can_play({index, end})) { move = Move{index, end}; break; }
+      }
+    }
+    if (move) {
+      ASSERT_TRUE(view.toggleSelection(static_cast<int>(move->hand_index)));
+      if (game.board().blocks().empty()) {
+        ASSERT_TRUE(view.playOpening());
+      } else if (*move->destination == BoardEnd::left) {
+        ASSERT_TRUE(view.playLeft());
+      } else {
+        ASSERT_TRUE(view.playRight());
+      }
+      ASSERT_NE(expected.play(*move), ActionResult::rejected);
+    } else {
+      ASSERT_TRUE(view.passTurn());
+      ASSERT_NE(expected.pass(), ActionResult::rejected);
+    }
+    expect_scores_and_result(view, expected);
+  }
+  ASSERT_TRUE(expected.current_hand().hand_result());
+  ASSERT_EQ(expected.current_hand().hand_result()->reason, HandEndReason::blocked);
+  ASSERT_FALSE(expected.current_hand().hand_result()->winning_team);
+  EXPECT_TRUE(view.handFinished());
+  EXPECT_TRUE(view.handTied());
+  EXPECT_EQ(view.handEndReason(), "Blocked hand");
+  EXPECT_TRUE(view.handWinningTeamName().isEmpty());
+  EXPECT_EQ(view.handAwardedPoints(), 0);
+  EXPECT_EQ(view.firstTeamScore(), 0);
+  EXPECT_EQ(view.secondTeamScore(), 0);
+  EXPECT_FALSE(view.passTurn());
+  expect_scores_and_result(view, expected);
+}
+
+TEST(MatchViewModelTest, PrematureNextHandPreservesSelectionStateAndTheNextDeal) {
+  std::mt19937 random{0};
+  Match expected{names(), random};
+  MatchViewModel view{names(), std::mt19937{0}};
+  ASSERT_TRUE(view.toggleSelection(0));
+  QSignalSpy state{&view, &MatchViewModel::gameStateChanged};
+  QSignalSpy hand{view.hand(), &QAbstractItemModel::modelReset};
+  QSignalSpy board{view.board(), &QAbstractItemModel::modelReset};
+  EXPECT_FALSE(view.startNextHand());
+  EXPECT_EQ(view.selectedHandIndex(), 0);
+  EXPECT_EQ(state.count(), 0);
+  EXPECT_EQ(hand.count(), 0);
+  EXPECT_EQ(board.count(), 0);
+  expect_current_hand(view, expected);
+  expect_scores_and_result(view, expected);
+  ASSERT_TRUE(view.playOpening());
+  ASSERT_EQ(expected.play({0}), ActionResult::accepted);
+  ASSERT_TRUE(view.toggleSelection(0));
+  const auto updates = state.count();
+  EXPECT_FALSE(view.startNextHand());
+  EXPECT_EQ(view.selectedHandIndex(), 0);
+  EXPECT_EQ(state.count(), updates);
+  EXPECT_EQ(hand.count(), 1);
+  EXPECT_EQ(board.count(), 1);
+  expect_current_hand(view, expected);
+  finish_hand_through_view(view, expected);
+  ASSERT_FALSE(expected.winning_team());
+  ASSERT_TRUE(expected.start_next_hand(random));
+  ASSERT_TRUE(view.startNextHand());
+  // Matching the next deal also verifies that rejected requests did not use RNG.
+  expect_fresh_hand(view, expected);
+}
+
+TEST(MatchViewModelTest, NextHandClearsTheOldBoardAndResultWhileKeepingScores) {
+  std::mt19937 random{0};
+  Match expected{names(), random};
+  MatchViewModel view{names(), std::mt19937{0}};
+  view.board()->setViewport(900, 600);
+  finish_hand_through_view(view, expected);
+  ASSERT_FALSE(expected.winning_team());
+  ASSERT_TRUE(view.nextHandAvailable());
+  ASSERT_GT(view.board()->count(), 0);
+  EXPECT_FALSE(view.handEndReason().isEmpty());
+  const auto totals = expected.scores();
+  ASSERT_GT(totals[0] + totals[1], 0);
+  const double tile_width = view.board()->data(
+      view.board()->index(0, 0), BoardTileModel::TileWidthRole).toDouble();
+  QSignalSpy state{&view, &MatchViewModel::gameStateChanged};
+  QSignalSpy hand{view.hand(), &QAbstractItemModel::modelReset};
+  QSignalSpy board{view.board(), &QAbstractItemModel::modelReset};
+  ASSERT_TRUE(expected.start_next_hand(random));
+  ASSERT_TRUE(view.startNextHand());
+  expect_fresh_hand(view, expected);
+  EXPECT_EQ(view.firstTeamScore(), totals[0]);
+  EXPECT_EQ(view.secondTeamScore(), totals[1]);
+  EXPECT_EQ(state.count(), 1);
+  EXPECT_EQ(hand.count(), 1);
+  EXPECT_EQ(board.count(), 1);
+  EXPECT_TRUE(view.feedback().contains(view.currentPlayerName()));
+  ASSERT_TRUE(view.toggleSelection(0));
+  ASSERT_TRUE(view.playOpening());
+  ASSERT_EQ(expected.play({0}), ActionResult::accepted);
+  const auto opening = view.board()->index(0, 0);
+  EXPECT_DOUBLE_EQ(view.board()->data(opening, BoardTileModel::CenterXRole).toDouble(), 450);
+  EXPECT_DOUBLE_EQ(view.board()->data(opening, BoardTileModel::CenterYRole).toDouble(), 300);
+  EXPECT_DOUBLE_EQ(view.board()->data(opening, BoardTileModel::TileWidthRole).toDouble(), tile_width);
+  expect_current_hand(view, expected);
+  expect_scores_and_result(view, expected);
+}
+
+TEST(MatchViewModelTest, NextHandAfterATieUsesTheEngineOpenerAndClearsTheTie) {
+  std::mt19937 random{13};
+  Match expected{names(), random};
+  MatchViewModel view{names(), std::mt19937{13}};
+  const auto original_opener = view.currentPlayerName();
+  finish_hand_through_view(view, expected);
+  ASSERT_TRUE(view.handTied());
+  ASSERT_TRUE(view.nextHandAvailable());
+  ASSERT_TRUE(expected.start_next_hand(random));
+  ASSERT_TRUE(view.startNextHand());
+  expect_fresh_hand(view, expected);
+  EXPECT_EQ(view.currentPlayerName(), original_opener);
+  EXPECT_FALSE(view.handTied());
+  EXPECT_EQ(view.firstTeamScore(), 0);
+  EXPECT_EQ(view.secondTeamScore(), 0);
+}
+
+TEST(MatchViewModelTest, CompletesMatchesForEitherTeamAndRejectsDealsAfterTheMatchWinner) {
+  for (const unsigned seed : {0u, 13u}) {
+    SCOPED_TRACE(seed);
+    std::mt19937 random{seed};
+    Match expected{names(), random};
+    MatchViewModel view{names(), std::mt19937{seed}};
+    int hands = 0;
+    while (hands < 64 && !expected.winning_team()) {
+      finish_hand_through_view(view, expected);
+      ++hands;
+      if (!expected.winning_team()) {
+        ASSERT_TRUE(view.nextHandAvailable());
+        const auto totals = expected.scores();
+        ASSERT_TRUE(expected.start_next_hand(random));
+        ASSERT_TRUE(view.startNextHand());
+        expect_fresh_hand(view, expected);
+        EXPECT_EQ(view.firstTeamScore(), totals[0]);
+        EXPECT_EQ(view.secondTeamScore(), totals[1]);
+      }
+    }
+    ASSERT_TRUE(expected.winning_team());
+    EXPECT_GT(hands, 1);
+    EXPECT_TRUE(view.matchFinished());
+    EXPECT_FALSE(view.nextHandAvailable());
+    EXPECT_EQ(view.matchWinningTeamName().toStdString(),
+              expected.team_names()[*expected.winning_team()]);
+    EXPECT_GE(expected.scores()[*expected.winning_team()], Match::target_score);
+    QSignalSpy state{&view, &MatchViewModel::gameStateChanged};
+    QSignalSpy hand{view.hand(), &QAbstractItemModel::modelReset};
+    QSignalSpy board{view.board(), &QAbstractItemModel::modelReset};
+    const int final_count = view.board()->count();
+    ASSERT_FALSE(expected.start_next_hand(random));
+    EXPECT_FALSE(view.startNextHand());
+    EXPECT_FALSE(view.passTurn());
+    EXPECT_FALSE(view.playOpening());
+    EXPECT_EQ(view.board()->count(), final_count);
+    EXPECT_EQ(state.count(), 0);
+    EXPECT_EQ(hand.count(), 0);
+    EXPECT_EQ(board.count(), 0);
+    expect_current_hand(view, expected);
+    expect_scores_and_result(view, expected);
+  }
 }
 
 TEST(BoardTileModelTest, OnlyActualBendsSwitchTheBoardToUpperAndLowerRegions) {
